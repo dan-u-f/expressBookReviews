@@ -1,22 +1,40 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const session = require('express-session')
+const session = require('express-session');
 const customer_routes = require('./router/auth_users.js').authenticated;
 const genl_routes = require('./router/general.js').general;
 
 const app = express();
 
 app.use(express.json());
+app.set('json spaces', 4); // respuestas JSON con sangría, más fáciles de leer
 
-app.use("/customer",session({secret:"fingerprint_customer",resave: true, saveUninitialized: true}))
+// Sesión para las rutas de clientes registrados
+app.use(
+  '/customer',
+  session({ secret: 'fingerprint_customer', resave: true, saveUninitialized: true })
+);
 
-app.use("/customer/auth/*", function auth(req,res,next){
-//Write the authenication mechanism here
+// Mecanismo de autenticación: protege todas las rutas /customer/auth/*
+app.use('/customer/auth/*', function auth(req, res, next) {
+  if (req.session.authorization) {
+    const token = req.session.authorization['accessToken'];
+    jwt.verify(token, 'access', (err, user) => {
+      if (!err) {
+        req.user = user;
+        next();
+      } else {
+        return res.status(403).json({ message: 'Usuario no autenticado' });
+      }
+    });
+  } else {
+    return res.status(403).json({ message: 'Usuario no ha iniciado sesión' });
+  }
 });
- 
-const PORT =5000;
 
-app.use("/customer", customer_routes);
-app.use("/", genl_routes);
+const PORT = 5000;
 
-app.listen(PORT,()=>console.log("Server is running"));
+app.use('/customer', customer_routes);
+app.use('/', genl_routes);
+
+app.listen(PORT, () => console.log('Server is running on port ' + PORT));
